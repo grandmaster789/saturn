@@ -2,25 +2,33 @@
 #define SATURN_JUST_H
 
 #include <utility>
-#include <stdexcept>
+#include <exception>
+#include <tuple>
+#include <functional>
 
 namespace saturn::just_detail {
-    // - we could replace the single-value propagation with std::tuple
-    // - we could make the operation internal to the sender (but it's already in a detail namespace)
-    // - we could introduce the [[no_unique_address]] tag for the receiver storage
-    // - we could restrict all templates to specific concepts
+    // - introduce the [[no_unique_address]] tag for the receiver storage
+    // - restrict all templates to specific concepts
+    // - NOTE check if the std::apply works in c++17 (lambda template)
 
-    template <typename R, typename T>
+    template <typename R, typename... Ts>
     struct JustOperation {
-        T m_Value;
-        R m_Receiver;
+        std::tuple<Ts...> m_Values;
+        R                 m_Receiver;
 
         void start() noexcept {
+            using std::apply;
+            using std::forward;
+            using std::move;
+            using std::current_exception;
+
             try {
-                m_Receiver.set_value(std::move(m_Value));
+				apply([&]<typename... T0>(T0&&... val) {
+					m_Receiver.set_value(forward<T0>(val)...);
+				}, move(m_Values));
             }
             catch (...) {
-                m_Receiver.set_error(std::current_exception());
+                m_Receiver.set_error(current_exception());
             }
         }
     };
@@ -30,34 +38,70 @@ namespace saturn::just_detail {
         R m_Receiver;
 
         void start() noexcept {
+            using std::current_exception;
+
             try {
                 m_Receiver.set_value();
             }
             catch (...) {
-                m_Receiver.set_error(std::current_exception());
+                m_Receiver.set_error(current_exception());
             }
         }
     };
 
-    template <typename T>
+    template <typename... Ts>
     struct JustSender {
+        using result_t = std::tuple<Ts...>;
+
+        std::tuple<Ts...> m_Values;
+
+        template <typename R>
+        auto connect(R&& recv)
+            -> JustOperation<R, Ts...>
+        {
+            using std::forward;
+
+            return {
+                m_Values,
+                forward<R>(recv)
+            };
+        }
+
+        template <typename t_Algorithm>
+        friend auto operator | (JustSender&& self, t_Algorithm&& algorithm) {
+            using std::forward;
+
+            return algorithm(
+                forward<JustSender>(self)
+            );
+        }
+    };
+
+    template <typename T>
+    struct JustSender<T> {
         using result_t = T;
 
-        T m_Values;
+        T m_Value;
 
         template <typename R>
         auto connect(R&& recv)
             -> JustOperation<R, T>
         {
-            return JustOperation<R, T>(
-                m_Values,
-                std::forward<R>(recv)
-            );
+            using std::forward;
+
+            return {
+                m_Value,
+                forward<R>(recv)
+            };
         }
 
         template <typename t_Algorithm>
         friend auto operator | (JustSender&& self, t_Algorithm&& algorithm) {
-            return algorithm(std::forward<JustSender>(self));
+            using std::forward;
+
+            return algorithm(
+                forward<JustSender>(self)
+            );
         }
     };
 
@@ -69,27 +113,25 @@ namespace saturn::just_detail {
         auto connect(R&& recv)
             ->JustOperation<R, void>
         {
-            return JustOperation<R, void>(
-                std::forward<R>(recv)
-            );
+            using std::forward;
+
+            return { forward<R>(recv) };
         }
     };
 }
 
 namespace saturn {
-    template <typename T>
-    auto just(T&& value)
-        -> just_detail::JustSender<T>
+    template <typename... Ts>
+    auto just(Ts&&... value)
+        -> just_detail::JustSender<Ts...>
     {
-        return just_detail::JustSender<T> {
-            std::forward<T>(value)
-        };
+        return  { std::forward<Ts>(value)... };
     }
 
     inline auto just()
         -> just_detail::JustSender<void>
     {
-        return just_detail::JustSender<void> {};
+        return {};
     }
 }
 

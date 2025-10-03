@@ -10,20 +10,20 @@ namespace saturn::then_detail {
         t_Receiver m_Receiver;
         t_Function m_Function;
 
-        template <typename t_Value>
-        void set_value(t_Value&& value) noexcept {
+        template <typename... t_Values>
+        void set_value(t_Values&&... values) noexcept {
             using std::is_void_v;
             using std::invoke_result_t;
             using std::forward;
             using std::current_exception;
 
             try {
-                if constexpr (is_void_v<invoke_result_t<t_Function, t_Value>>) {
-                    m_Function(forward<t_Value>(value));
+                if constexpr (is_void_v<invoke_result_t<t_Function, t_Values...>>) {
+                    m_Function(forward<t_Values>(values)...);
                     m_Receiver.set_value();
                 }
                 else
-                    m_Receiver.set_value(m_Function(forward<t_Value>(value)));
+                    m_Receiver.set_value(m_Function(forward<t_Values>(values)...));
             }
             catch (...) {
                 set_error(current_exception());
@@ -78,6 +78,11 @@ namespace saturn::then_detail {
         using type = std::invoke_result_t<t_Function, t_SenderResult>;
     };
 
+    template <typename t_Function, typename... Ts>
+    struct ThenResultType<std::tuple<Ts...>, t_Function> {
+        using type = std::invoke_result_t<t_Function, Ts...>;
+    };
+
     template <typename t_Function>
     struct ThenResultType<void, t_Function> {
         using type = std::invoke_result_t<t_Function>;
@@ -100,9 +105,11 @@ namespace saturn::then_detail {
         auto connect(t_Receiver&& recv)
             -> ThenOperation<t_Receiver>
         {
-            return ThenOperation<t_Receiver> {
+            using std::forward;
+
+            return {
                 m_Sender.connect(ThenReceiver<t_Receiver> {
-                    std::forward<t_Receiver>(recv),
+                    forward<t_Receiver>(recv),
                     m_Function
                 })
             };
@@ -117,10 +124,13 @@ namespace saturn::then_detail {
         auto operator()(t_Sender&& sender) const
             -> ThenSender<t_Sender, t_Function>
         {
-            return ThenSender<t_Sender, t_Function>(
-                std::forward<t_Sender>(sender),
-                std::move(m_Function)
-            );
+            using std::forward;
+            using std::move;
+
+            return {
+                forward<t_Sender>(sender),
+                move(m_Function)
+            };
         }
     };
 }
@@ -133,23 +143,27 @@ namespace saturn {
     auto then(
         t_Sender&&   sender,
         t_Function&& fn
-    ) {
-        return then_detail::ThenSender<
+    )
+        -> then_detail::ThenSender<
             std::decay_t<t_Sender>,
             std::decay_t<t_Function>
-        >(
+        >
+    {
+        return {
             std::forward<t_Sender>(sender),
             std::forward<t_Function>(fn)
-        );
+        };
     }
 
     template <typename t_Function>
-    auto then(t_Function&& fn) {
-        return then_detail::ThenPartialSender<
+    auto then(t_Function&& fn)
+        -> then_detail::ThenPartialSender<
             std::decay_t<t_Function>
-        >(
+        >
+    {
+        return {
             std::forward<t_Function>(fn)
-        );
+        };
     }
 }
 

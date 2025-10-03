@@ -3,8 +3,7 @@
 
 #include <optional>
 #include <exception>
-
-// this is not part of p2300, but seems like a useful addition
+#include <tuple>
 
 namespace saturn::unsynhronized_wait_detail {
     struct UnsynchronizedWaitControlBlock {
@@ -17,13 +16,19 @@ namespace saturn::unsynhronized_wait_detail {
         UnsynchronizedWaitControlBlock& m_ControlBlock;
         std::optional<T>&               m_Result;
 
-        template <typename U>
-        void set_value(U&& value) {
-            m_Result.emplace(std::forward<U>(value));
+        template <typename... Us>
+        void set_value(Us&&... values) {
+            if constexpr (sizeof...(Us) == 1) {
+                m_Result.emplace(std::forward<Us>(values)...);
+            }
+            else {
+                m_Result.emplace(std::make_tuple(std::forward<Us>(values)...));
+            }
+
             m_ControlBlock.m_Completed = true;
         }
 
-        void set_error(std::exception_ptr ptr) {
+        void set_error(const std::exception_ptr& ptr) {
             m_ControlBlock.m_Exception = ptr;
             m_ControlBlock.m_Completed = true;
         }
@@ -41,7 +46,7 @@ namespace saturn::unsynhronized_wait_detail {
             m_ControlBlock.m_Completed = true;
         }
 
-        void set_error(std::exception_ptr ptr) {
+        void set_error(const std::exception_ptr& ptr) {
             m_ControlBlock.m_Exception = ptr;
             m_ControlBlock.m_Completed = true;
         }
@@ -54,7 +59,7 @@ namespace saturn::unsynhronized_wait_detail {
     struct UnsynchronizedWait {
         template <typename S>
         auto operator()(S&& sender) const {
-            using T = typename std::remove_cvref_t<S>::result_t;
+            using T = std::remove_cvref_t<S>::result_t;
 
             UnsynchronizedWaitControlBlock ctl;
 
@@ -64,6 +69,8 @@ namespace saturn::unsynhronized_wait_detail {
 
                 if (ctl.m_Exception)
                     std::rethrow_exception(ctl.m_Exception);
+
+                // could be either stopped or completed
             }
             else {
                 std::optional<T> result;
@@ -74,7 +81,7 @@ namespace saturn::unsynhronized_wait_detail {
                 if (ctl.m_Exception)
                     std::rethrow_exception(ctl.m_Exception);
 
-                return result;
+                return result; // if the operation was stopped, the result will be empty
             }
         }
 
@@ -86,7 +93,7 @@ namespace saturn::unsynhronized_wait_detail {
 }
 
 namespace saturn {
-    // global instance
+    // this way we support both direct calls and pipe syntax
     inline constexpr unsynhronized_wait_detail::UnsynchronizedWait unsynchronized_wait{};
 }
 

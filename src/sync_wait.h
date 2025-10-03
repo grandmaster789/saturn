@@ -4,6 +4,7 @@
 #include <mutex>
 #include <condition_variable>
 #include <optional>
+#include <tuple>
 #include <exception>
 
 namespace saturn::sync_wait_detail {
@@ -19,11 +20,17 @@ namespace saturn::sync_wait_detail {
         SyncWaitControlBlock& m_ControlBlock;
         std::optional<T>&     m_Result;
 
-        template <typename U>
-        void set_value(U&& value) {
+        template <typename... Us>
+        void set_value(Us&&... values) {
             std::unique_lock guard(m_ControlBlock.m_Mutex);
 
-            m_Result.emplace(std::forward<U>(value));
+            if constexpr (sizeof...(Us) == 1) {
+                m_Result.emplace(std::forward<Us>(values)...);
+            }
+            else {
+                m_Result.emplace(std::make_tuple(std::forward<Us>(values)...));
+            }
+
             m_ControlBlock.m_Completed = true;
             m_ControlBlock.m_Condition.notify_one();
         }
@@ -121,7 +128,7 @@ namespace saturn::sync_wait_detail {
 }
 
 namespace saturn {
-    // global instance
+    // this way we support both direct calls and pipe syntax
     inline constexpr sync_wait_detail::SyncWait sync_wait{};
 }
 
