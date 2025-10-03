@@ -2,19 +2,27 @@
 #define SATURN_TEST_EXPECT_RECEIVER_H
 
 #include <catch2/catch_test_macros.hpp>
+#include <tuple>
 
 namespace saturn_test {
-    template <typename T>
+    template <typename... Ts>
     struct ExpectValueReceiver {
-        T m_Value;
+        std::tuple<Ts...> m_ExpectedValues;
 
-        explicit ExpectValueReceiver(T value):
-            m_Value(value)
+        explicit ExpectValueReceiver(Ts&&... values):
+            m_ExpectedValues(std::forward<Ts>(values)...)
         {
         }
 
         void set_value()                       { REQUIRE(false); }
-        void set_value(T value)                { REQUIRE(value == m_Value); }
+
+        template <typename... Us>
+        void set_value(Us&&... actual_values) {
+            static_assert(sizeof...(Us) == sizeof...(Ts), "Mismatch in argument count");
+
+            REQUIRE(std::make_tuple(std::forward<Us>(actual_values)...) == m_ExpectedValues);
+        }
+
         void set_error(std::exception_ptr)     { REQUIRE(false); }
         void set_stopped()                     { REQUIRE(false); }
     };
@@ -27,15 +35,15 @@ namespace saturn_test {
     };
 
     struct ExpectErrorReceiver {
-        template <typename T>
-        void set_value(T)                      { REQUIRE(false); }
+        template <typename... Ts>
+        void set_value(Ts...)                  { REQUIRE(false); }
         void set_error(std::exception_ptr ptr) { REQUIRE(ptr); } // NOTE this will test for *any* exception, not a specific one
         void set_stopped()                     { REQUIRE(false); }
     };
 
     struct ExpectStoppedReceiver {
-        template <typename T>
-        void set_value(T)                      { REQUIRE(false); }
+        template <typename...Ts>
+        void set_value(Ts...)                  { REQUIRE(false); }
         void set_error(std::exception_ptr)     { REQUIRE(false); }
         void set_stopped()                     {}
     };

@@ -5,7 +5,7 @@
 #include <exception>
 #include <tuple>
 
-namespace saturn::unsynhronized_wait_detail {
+namespace saturn::unsynchronized_wait_detail {
     struct UnsynchronizedWaitControlBlock {
         std::exception_ptr m_Exception;
         bool               m_Completed = false;
@@ -94,7 +94,7 @@ namespace saturn::unsynhronized_wait_detail {
 
 namespace saturn {
     // this way we support both direct calls and pipe syntax
-    inline constexpr unsynhronized_wait_detail::UnsynchronizedWait unsynchronized_wait{};
+    inline constexpr unsynchronized_wait_detail::UnsynchronizedWait unsynchronized_wait{};
 }
 
 #endif
