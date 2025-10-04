@@ -13,7 +13,7 @@
 namespace saturn::when_all_detail {
     template <typename... Ts>
     struct WhenAllControl {
-        std::atomic<size_t>          m_Remaining = sizeof...(Ts);
+        std::atomic<size_t>          m_Remaining   = sizeof...(Ts);
         std::atomic<bool>            m_Interrupted = false; // either an error or stopped
         std::exception_ptr           m_Exception;
         void_filtered_tuple_t<Ts...> m_Results;
@@ -104,7 +104,7 @@ namespace saturn::when_all_detail {
         typename       t_SendersTuple,
         std::size_t... t_Indices
     >
-    struct WhenAllOperation{};
+    struct WhenAllOperation;
 
     template <
         typename       t_Receiver,

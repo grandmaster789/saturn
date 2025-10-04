@@ -5,14 +5,12 @@
 #include <stdexcept>
 
 namespace saturn::just_error_detail {
-    template <typename R>
+    template <typename t_Receiver>
     struct JustErrorOperation {
         std::exception_ptr m_Exception;
-        R                  m_Receiver;
+        t_Receiver         m_Receiver;
 
-        void start() noexcept {
-            m_Receiver.set_error(m_Exception);
-        }
+        void start() noexcept;
     };
 
     struct JustErrorSender {
@@ -20,15 +18,9 @@ namespace saturn::just_error_detail {
 
         std::exception_ptr m_Exception;
 
-        template <typename R>
-        auto connect(R&& recv)
-            -> JustErrorOperation<R>
-        {
-            return JustErrorOperation<R>(
-                m_Exception,
-                std::forward<R>(recv)
-            );
-        }
+        template <typename t_Receiver>
+        auto connect(t_Receiver&& recv)
+            -> JustErrorOperation<t_Receiver>;
 
         template <typename t_Algorithm>
         friend auto operator | (JustErrorSender&& self, t_Algorithm&& algorithm) {
@@ -38,13 +30,10 @@ namespace saturn::just_error_detail {
 }
 
 namespace saturn {
-    inline auto just_error(const std::exception_ptr& err)
-        -> just_error_detail::JustErrorSender
-    {
-        return {
-            err
-        };
-    }
+    inline auto just_error(const std::exception_ptr& exception)
+        -> just_error_detail::JustErrorSender;
 }
+
+#include "just_error.inl"
 
 #endif

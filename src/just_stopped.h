@@ -5,26 +5,19 @@
 #include <stdexcept>
 
 namespace saturn::just_stopped_detail {
-    template <typename R>
+    template <typename t_Receiver>
     struct JustStoppedOperation {
-        R m_Receiver;
+        t_Receiver m_Receiver;
 
-        void start() noexcept {
-            m_Receiver.set_stopped();
-        }
+        void start() noexcept;
     };
 
     struct JustStoppedSender {
         using result_t = void;
 
-        template <typename R>
-        auto connect(R&& recv)
-            -> JustStoppedOperation<R>
-        {
-            return {
-                std::forward<R>(recv)
-            };
-        }
+        template <typename t_Receiver>
+        auto connect(t_Receiver&& recv)
+            -> JustStoppedOperation<t_Receiver>;
 
         template <typename t_Algorithm>
         friend auto operator | (JustStoppedSender&& self, t_Algorithm&& algorithm) {
@@ -35,10 +28,9 @@ namespace saturn::just_stopped_detail {
 
 namespace saturn {
     inline auto just_stopped()
-        -> just_stopped_detail::JustStoppedSender
-    {
-        return {};
-    }
+        -> just_stopped_detail::JustStoppedSender;
 }
+
+#include "just_stopped.inl"
 
 #endif
